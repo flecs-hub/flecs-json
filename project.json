@@ -1,0 +1,13 @@
+{
+    "id": "flecs.json",
+    "type": "package",
+    "value": {
+        "author": "Sander Mertens",
+        "description": "JSON serialization for flecs.components.meta",
+        "use": [
+            "flecs",
+            "flecs.components.meta",
+            "flecs.util"
+        ]
+    }
+}
