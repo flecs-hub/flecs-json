@@ -1,19 +1,26 @@
 #include <flecs_json.h>
 
+/* Simple serializer to turn values into strings. Use this code as a template
+ * for when implementing a new serializer. */
+
 static
 void json_ser_type(
+    ecs_world_t *world,
     ecs_vector_t *ser, 
     void *base, 
     ecs_strbuf_t *str);
 
 static
 void json_ser_type_op(
+    ecs_world_t *world,
     ecs_type_op_t *op, 
     void *base,
     ecs_strbuf_t *str);
 
+/* Serialize a primitive value */
 static
 void json_ser_primitive(
+    ecs_world_t *world,
     ecs_type_op_t *op, 
     void *base, 
     ecs_strbuf_t *str) 
@@ -63,10 +70,10 @@ void json_ser_primitive(
         ecs_strbuf_append(str, "%f", *(double*)base);
         break;
     case EcsIPtr:
-        ecs_strbuf_appendstrn(str, "%i", *(intptr_t*)base);
+        ecs_strbuf_append(str, "%i", *(intptr_t*)base);
         break;
     case EcsUPtr:
-        ecs_strbuf_appendstrn(str, "%u", *(uintptr_t*)base);
+        ecs_strbuf_append(str, "%u", *(uintptr_t*)base);
         break;
     case EcsString: {
         char *value = *(char**)base;
@@ -75,16 +82,19 @@ void json_ser_primitive(
             ecs_strbuf_appendstr(str, value);
             ecs_strbuf_appendstrn(str, "\"", 1);
         } else {
-            ecs_strbuf_appendstr(str, "null");
+            ecs_strbuf_appendstr(str, "nullptr");
         }
         break;
     }
     case EcsEntity:
-        ecs_strbuf_appendstrn(str, "%u", *(intptr_t*)base);
+        ecs_strbuf_appendstrn(str, "\"", 1);
+        ecs_strbuf_appendstr(str, ecs_get_id(world, *(ecs_entity_t*)base));
+        ecs_strbuf_appendstrn(str, "\"", 1);
         break;
     }
 }
 
+/* Serialize enumeration */
 static
 void json_ser_enum(
     ecs_type_op_t *op, 
@@ -93,18 +103,19 @@ void json_ser_enum(
 {
     ecs_assert(op->is.constant != NULL, ECS_INVALID_PARAMETER, NULL);
 
-    ecs_strbuf_appendstrn(str, "\"", 1);
-
     int32_t value = *(int32_t*)base;
     
+    /* Enumeration constants are stored in a map that is keyed on the
+     * enumeration value. */
     char **constant = ecs_map_get(op->is.constant, char*, value);
     ecs_assert(constant != NULL, ECS_INVALID_PARAMETER, NULL);
 
+    ecs_strbuf_appendstrn(str, "\"", 1);
     ecs_strbuf_appendstr(str, *constant);
-
     ecs_strbuf_appendstrn(str, "\"", 1);
 }
 
+/* Serialize bitmask */
 static
 void json_ser_bitmask(
     ecs_type_op_t *op, 
@@ -113,65 +124,63 @@ void json_ser_bitmask(
 {
     ecs_assert(op->is.constant != NULL, ECS_INVALID_PARAMETER, NULL);
 
-    ecs_strbuf_appendstrn(str, "[", 1);
-
     int32_t value = *(int32_t*)base;
-    ecs_map_key_t key, count = 0;
+    ecs_map_key_t key;
     char **constant;
 
+    ecs_strbuf_list_push(str, "[", ",");
+
+    /* Multiple flags can be set at a given time. Iterate through all the flags
+     * and append the ones that are set. */
     ecs_map_iter_t it = ecs_map_iter(op->is.constant);
     while ((constant = ecs_map_next(&it, char*, &key))) {
         if ((value & key) == key) {
-            if (count) {
-                ecs_strbuf_appendstrn(str, ",", 1);
-            }
-            ecs_strbuf_appendstrn(str, "\"", 1);
-            ecs_strbuf_appendstr(str, *constant);
-            ecs_strbuf_appendstrn(str, "\"", 1);
-            count ++;
+            ecs_strbuf_list_append(str, "\"%s\"", *constant);
         }
     }
 
-    ecs_strbuf_appendstrn(str, "]", 1);
+    ecs_strbuf_list_pop(str, "]");
 }
 
-
+/* Serialize elements of a contiguous array */
 static
 void json_ser_elements(
+    ecs_world_t *world,
     ecs_vector_t *elem_ops, 
     void *base, 
     int32_t elem_count, 
     int32_t elem_size,
     ecs_strbuf_t *str)
 {
-    ecs_strbuf_appendstrn(str, "[", 1);
+    ecs_strbuf_list_push(str, "[", ",");
 
     void *ptr = base;
 
     int i;
     for (i = 0; i < elem_count; i ++) {
-        if (i) {
-            ecs_strbuf_appendstrn(str, ",", 1);
-        }
-        
-        json_ser_type(elem_ops, ptr, str);
+        ecs_strbuf_list_next(str);
+        json_ser_type(world, elem_ops, ptr, str);
         ptr = ECS_OFFSET(ptr, elem_size);
     }
 
-    ecs_strbuf_appendstrn(str, "]", 1);
+    ecs_strbuf_list_pop(str, "]");
 }
 
+/* Serialize array */
 static
 void json_ser_array(
+    ecs_world_t *world,
     ecs_type_op_t *op, 
     void *base, 
     ecs_strbuf_t *str) 
 {
-    json_ser_elements(op->is.collection, base, op->count, op->size, str);
+    json_ser_elements(world, op->is.collection, base, op->count, op->size, str);
 }
 
+/* Serialize vector */
 static
 void json_ser_vector(
+    ecs_world_t *world,
     ecs_type_op_t *op, 
     void *base, 
     ecs_strbuf_t *str) 
@@ -187,11 +196,14 @@ void json_ser_vector(
     ecs_assert(elem_op_hdr->kind == EcsOpHeader, ECS_INTERNAL_ERROR, NULL);
     size_t elem_size = elem_op_hdr->size;
 
-    json_ser_elements(elem_ops, array, count, elem_size, str);
+    /* Serialize contiguous buffer of vector */
+    json_ser_elements(world, elem_ops, array, count, elem_size, str);
 }
 
+/* Serialize map */
 static
 void json_ser_map(
+    ecs_world_t *world,
     ecs_type_op_t *op, 
     void *base, 
     ecs_strbuf_t *str) 
@@ -201,28 +213,27 @@ void json_ser_map(
     ecs_map_iter_t it = ecs_map_iter(value);  
     ecs_map_key_t key; 
     void *ptr;
-    int32_t count = 0;
 
-    ecs_strbuf_appendstrn(str, "{", 1);
+    ecs_strbuf_list_push(str, "{", ",");
 
     while ((ptr = _ecs_map_next(&it, 0, &key))) {
-        if (count) {
-            ecs_strbuf_appendstrn(str, ",", 1);
-        }
-
-        json_ser_type_op(op->is.map.key_op, (void*)&key, str);
-        ecs_strbuf_appendstrn(str, ":", 1);
-        json_ser_type(op->is.map.element_ops, ptr, str);
-        count ++;
+        ecs_strbuf_list_next(str);
+        ecs_strbuf_appendstrn(str, "\"", 1);
+        json_ser_type_op(world, op->is.map.key_op, (void*)&key, str);
+        ecs_strbuf_appendstrn(str, "\"", 1);
+        ecs_strbuf_appendstr(str, ":");
+        json_ser_type(world, op->is.map.element_ops, ptr, str);
 
         key = 0;
     }
 
-    ecs_strbuf_appendstrn(str, "}", 1);
+    ecs_strbuf_list_pop(str, "}");
 }
 
+/* Forward serialization to the different type kinds */
 static
 void json_ser_type_op(
+    ecs_world_t *world,
     ecs_type_op_t *op, 
     void *base,
     ecs_strbuf_t *str) 
@@ -235,7 +246,7 @@ void json_ser_type_op(
         ecs_abort(ECS_INVALID_PARAMETER, NULL);
         break;
     case EcsOpPrimitive:
-        json_ser_primitive(op, ECS_OFFSET(base, op->offset), str);
+        json_ser_primitive(world, op, ECS_OFFSET(base, op->offset), str);
         break;
     case EcsOpEnum:
         json_ser_enum(op, ECS_OFFSET(base, op->offset), str);
@@ -244,35 +255,39 @@ void json_ser_type_op(
         json_ser_bitmask(op, ECS_OFFSET(base, op->offset), str);
         break;
     case EcsOpArray:
-        json_ser_array(op, ECS_OFFSET(base, op->offset), str);
+        json_ser_array(world, op, ECS_OFFSET(base, op->offset), str);
         break;
     case EcsOpVector:
-        json_ser_vector(op, ECS_OFFSET(base, op->offset), str);
+        json_ser_vector(world, op, ECS_OFFSET(base, op->offset), str);
         break;
     case EcsOpMap:
-        json_ser_map(op, ECS_OFFSET(base, op->offset), str);
+        json_ser_map(world, op, ECS_OFFSET(base, op->offset), str);
         break;
     }
 }
 
+/* Iterate over the type ops of a type */
 static
-void json_ser_type(ecs_vector_t *ser, void *base, ecs_strbuf_t *str) {
+void json_ser_type(
+    ecs_world_t *world,
+    ecs_vector_t *ser, 
+    void *base, 
+    ecs_strbuf_t *str) 
+{
     ecs_type_op_t *ops = (ecs_type_op_t*)ecs_vector_first(ser);
     int32_t count = ecs_vector_count(ser);
-
-    int elem_count[64] = {0};
-    int sp = 0;
 
     for (int i = 0; i < count; i ++) {
         ecs_type_op_t *op = &ops[i];
 
-        if (sp && elem_count[sp] && op->kind != EcsOpPop) {
-            ecs_strbuf_appendstrn(str, ",", 1);
-        }
-
-        elem_count[sp] ++;
-
         if (op->name) {
+            if (op->kind != EcsOpHeader &&
+                op->kind != EcsOpPush &&
+                op->kind != EcsOpPop)
+            {
+                ecs_strbuf_list_next(str);
+            }
+
             ecs_strbuf_append(str, "\"%s\":", op->name);
         }
 
@@ -280,38 +295,67 @@ void json_ser_type(ecs_vector_t *ser, void *base, ecs_strbuf_t *str) {
         case EcsOpHeader:
             break;
         case EcsOpPush:
-            ecs_strbuf_appendstrn(str, "{", 1);
-            sp ++;
-            elem_count[sp] = 0;
+            ecs_strbuf_list_push(str, "{", ",");
             break;
         case EcsOpPop:
-            ecs_strbuf_appendstrn(str, "}", 1);
-            sp --;
+            ecs_strbuf_list_pop(str, "}");
             break;
         default:
-            json_ser_type_op(op, base, str);
+            json_ser_type_op(world, op, base, str);
             break;
         }
     }
 }
 
-char* ecs_to_json(ecs_world_t *world, ecs_entity_t e) {
-    ecs_type_t type = ecs_get_type(world, e);
+char* ecs_ptr_to_json(
+    ecs_world_t *world, 
+    ecs_entity_t type, 
+    void* ptr)
+{
+    ecs_entity_t ecs_entity(EcsTypeSerializer) = ecs_lookup(world, "EcsTypeSerializer");
+    EcsTypeSerializer *ser = ecs_get_ptr(world, type, EcsTypeSerializer);
+    ecs_assert(ser != NULL, ECS_INVALID_PARAMETER, NULL);
+
+    ecs_strbuf_t str = ECS_STRBUF_INIT;
+    json_ser_type(world, ser->ops, ptr, &str);
+    return ecs_strbuf_get(&str);
+}
+
+char* ecs_entity_to_json(
+    ecs_world_t *world, 
+    ecs_entity_t entity)
+{
+    ecs_type_t type = ecs_get_type(world, entity);
     ecs_entity_t *ids = (ecs_entity_t*)ecs_vector_first(type);
     int32_t count = ecs_vector_count(type);
     
-    ecs_entity_t EEcsTypeSerializer = ecs_lookup(world, "EcsTypeSerializer");
+    ecs_entity_t ecs_entity(EcsTypeSerializer) = ecs_lookup(world, "EcsTypeSerializer");
     ecs_strbuf_t str = ECS_STRBUF_INIT;
+
+    const char *name = ecs_get_id(world, entity);
+    if (name) {
+        ecs_strbuf_append(&str, "{\"%s\":", name);
+    }
+
+    ecs_strbuf_list_push(&str, "{", ",");
 
     int i;
     for (i = 0; i < count; i ++) {
         EcsTypeSerializer *ser = ecs_get_ptr(world, ids[i], EcsTypeSerializer);
         if (ser) {
-            void *ptr = _ecs_get_ptr(world, e, ids[i]);
-            json_ser_type(ser->ops, ptr, &str);
-            ecs_strbuf_appendstrn(&str, "\n", 1);
+            ecs_strbuf_list_next(&str);
+
+            void *ptr = _ecs_get_ptr(world, entity, ids[i]);
+            ecs_strbuf_append(&str, "\"%s\":", ecs_get_id(world, ids[i]));
+            json_ser_type(world, ser->ops, ptr, &str);
         }
     }
 
-    return ecs_strbuf_get(&str);
+    ecs_strbuf_appendstr(&str, "}");
+
+    if (name) {
+        ecs_strbuf_appendstr(&str, "}");
+    }
+
+    return ecs_strbuf_get(&str);  
 }

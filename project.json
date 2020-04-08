@@ -6,8 +6,7 @@
         "description": "JSON serialization for flecs.components.meta",
         "use": [
             "flecs",
-            "flecs.components.meta",
-            "flecs.util"
+            "flecs.components.meta"
         ]
     }
 }
