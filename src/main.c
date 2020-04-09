@@ -359,3 +359,70 @@ char* ecs_entity_to_json(
 
     return ecs_strbuf_get(&str);  
 }
+
+void json_ser_column(
+    ecs_world_t *world,
+    EcsTypeSerializer *ser, 
+    void *ptr,
+    int32_t count,
+    ecs_strbuf_t *str)
+{
+    ecs_vector_t *ops = ser->ops;
+    ecs_type_op_t *hdr = ecs_vector_first(ops);
+    ecs_assert(hdr->kind == EcsOpHeader, ECS_INTERNAL_ERROR, NULL);
+    int32_t size = hdr->size;
+
+    ecs_strbuf_list_push(str, "[", ",");
+
+    int i;
+    for (i = 0; i < count; i ++) {
+        ecs_strbuf_list_next(str);
+        json_ser_type(world, ops, ptr, str);
+        ptr = ECS_OFFSET(ptr, size);
+    }
+
+    ecs_strbuf_list_pop(str, "]");
+}
+
+char* ecs_filter_to_json(
+    ecs_world_t *world, 
+    ecs_filter_t *filter)
+{
+    ecs_strbuf_t str = ECS_STRBUF_INIT;
+    ecs_filter_iter_t it = ecs_filter_iter(world, filter);
+    ecs_entity_t ecs_entity(EcsTypeSerializer) = ecs_lookup(world, "EcsTypeSerializer");
+    ecs_assert(ecs_entity(EcsTypeSerializer) != 0, ECS_INTERNAL_ERROR, NULL);
+
+    while (ecs_filter_next(&it)) {
+        ecs_rows_t *rows = &it.rows;
+
+        ecs_type_t table_type = ecs_table_type(rows);
+        ecs_entity_t *comps = ecs_vector_first(table_type);
+        int32_t i, count = ecs_vector_count(table_type);
+
+        if (!rows->count) {
+            continue;
+        }
+
+        ecs_strbuf_list_push(&str, "{", ",");
+
+        for (i = 0; i < count; i ++) {
+            EcsTypeSerializer *ser = ecs_get_ptr(
+                    world, comps[i], EcsTypeSerializer);
+
+            if (!ser) {
+                continue;
+            }
+
+            ecs_strbuf_list_append(
+                &str, "\"%s\":", ecs_get_id(world, comps[i]));
+
+            json_ser_column(
+                world, ser, ecs_table_column(rows, i), rows->count, &str);
+        }
+
+        ecs_strbuf_list_pop(&str, "}");
+    }    
+
+    return ecs_strbuf_get(&str);
+}

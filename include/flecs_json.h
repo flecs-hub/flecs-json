@@ -17,6 +17,10 @@ char* ecs_entity_to_json(
     ecs_world_t *world, 
     ecs_entity_t e);
 
+char* ecs_filter_to_json(
+    ecs_world_t *world, 
+    ecs_filter_t *filter);
+
 #ifdef __cplusplus
 }
 #endif
@@ -38,6 +42,14 @@ std::string to_json(flecs::world& world, T& data) {
 template <>
 std::string to_json<flecs::entity>(flecs::world& world, flecs::entity& entity) {
     char *str = ecs_entity_to_json(world.c_ptr(), entity.id());
+    std::string result = std::string(str);
+    free(str);
+    return result;
+}
+
+template <>
+std::string to_json<flecs::entity>(flecs::world& world, flecs::filter& filter) {
+    char *str = ecs_filter_to_json(world.c_ptr(), filter.c_ptr());
     std::string result = std::string(str);
     free(str);
     return result;
