@@ -1,5 +1,5 @@
 {
-    "id": "filter",
+    "id": "nested_struct",
     "type": "application",
     "value": {
         "author": "Jane Doe",
