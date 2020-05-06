@@ -14,31 +14,32 @@
  * dependencies will automatically show up in this file. Include bake_config.h
  * in your main project file. Do not edit! */
 
-#ifndef NESTED_STRUCT_BAKE_CONFIG_H
-#define NESTED_STRUCT_BAKE_CONFIG_H
+#ifndef ARRAY_BAKE_CONFIG_H
+#define ARRAY_BAKE_CONFIG_H
 
 /* Headers of public dependencies */
 #include <flecs.h>
 #include <flecs_components_meta.h>
+#include <flecs_json.h>
 
 /* Headers of private dependencies */
-#ifdef NESTED_STRUCT_IMPL
+#ifdef ARRAY_IMPL
 /* No dependencies */
 #endif
 
 /* Convenience macro for exporting symbols */
-#ifndef NESTED_STRUCT_STATIC
-  #if NESTED_STRUCT_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define NESTED_STRUCT_EXPORT __declspec(dllexport)
-  #elif NESTED_STRUCT_IMPL
-    #define NESTED_STRUCT_EXPORT __attribute__((__visibility__("default")))
+#ifndef ARRAY_STATIC
+  #if ARRAY_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
+    #define ARRAY_EXPORT __declspec(dllexport)
+  #elif ARRAY_IMPL
+    #define ARRAY_EXPORT __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define NESTED_STRUCT_EXPORT __declspec(dllimport)
+    #define ARRAY_EXPORT __declspec(dllimport)
   #else
-    #define NESTED_STRUCT_EXPORT
+    #define ARRAY_EXPORT
   #endif
 #else
-  #define NESTED_STRUCT_EXPORT
+  #define ARRAY_EXPORT
 #endif
 
 #endif

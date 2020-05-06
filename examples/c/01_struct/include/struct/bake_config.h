@@ -20,7 +20,6 @@
 /* Headers of public dependencies */
 #include <flecs.h>
 #include <flecs_components_meta.h>
-#include <flecs_json.h>
 
 /* Headers of private dependencies */
 #ifdef STRUCT_IMPL

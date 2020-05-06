@@ -1,5 +1,5 @@
 {
-    "id": "nested_struct",
+    "id": "serialize_type",
     "type": "application",
     "value": {
         "author": "Jane Doe",
@@ -9,6 +9,7 @@
             "flecs",
             "flecs.components.meta",
             "flecs.json"
-        ]
+        ],
+        "language": "c++"
     }
 }

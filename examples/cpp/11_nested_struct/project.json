@@ -9,6 +9,7 @@
             "flecs",
             "flecs.components.meta",
             "flecs.json"
-        ]
+        ],
+        "language": "c++"
     }
 }
