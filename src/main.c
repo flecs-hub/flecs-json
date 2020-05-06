@@ -348,12 +348,36 @@ void serialize_type(
     ecs_type_t type,
     ecs_strbuf_t *str)
 {
+    ecs_strbuf_list_appendstr(str, "\"type\":");
+
     ecs_strbuf_list_push(str, "[", ",");
+
     int i, count = ecs_vector_count(type);
     ecs_entity_t *comps = ecs_vector_first(type);
     for (i = 0; i < count; i ++) {
-        ecs_strbuf_list_append(str, "\"%s\"", ecs_get_id(world, comps[i]));
+        ecs_entity_t comp = comps[i];
+        const char *comp_id = ecs_get_id(world, comp);
+        
+        ecs_strbuf_list_next(str);
+        ecs_strbuf_list_push(str, "[", ",");
+
+        if (comp_id) {
+            ecs_strbuf_list_append(str, "\"%s\"", comp_id);
+        } else {
+            ecs_strbuf_list_append(str, "%d", (int32_t)comp);
+        }
+
+        if ((comp & ECS_ENTITY_MASK) != comp) {
+            if (comp & ECS_CHILDOF) {
+                ecs_strbuf_list_append(str, "\"CHILDOF\"");
+             } else if (comp & ECS_INSTANCEOF) {
+                ecs_strbuf_list_append(str, "\"INSTANCEOF\"");
+             }
+        }
+
+        ecs_strbuf_list_pop(str, "]");
     }
+
     ecs_strbuf_list_pop(str, "]");
 }
 
@@ -383,7 +407,6 @@ char* ecs_filter_to_json(
         ecs_strbuf_list_push(&str, "{", ",");
 
         /* Serialize type */
-        ecs_strbuf_list_appendstr(&str, "\"type\":");
         serialize_type(world, table_type, &str);
 
         /* Add entity identifiers */
@@ -435,7 +458,6 @@ char* ecs_entity_to_json(
 
     /* Serialize type */
     ecs_type_t type = ecs_get_type(world, entity);
-    ecs_strbuf_list_appendstr(&str, "\"type\":");
     serialize_type(world, type, &str);
 
     /* Serialize entity id */
