@@ -3,10 +3,10 @@
     "type": "package",
     "value": {
         "author": "Sander Mertens",
-        "description": "JSON serialization for flecs.components.meta",
+        "description": "JSON serialization for flecs.meta",
         "use": [
             "flecs",
-            "flecs.components.meta"
+            "flecs.meta"
         ]
     }
 }
