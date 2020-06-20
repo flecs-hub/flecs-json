@@ -356,16 +356,11 @@ void serialize_type(
     ecs_entity_t *comps = ecs_vector_first(type, ecs_entity_t);
     for (i = 0; i < count; i ++) {
         ecs_entity_t comp = comps[i];
-        const char *comp_id = ecs_get_name(world, comp);
+        ecs_entity_t comp_e = comp & ECS_ENTITY_MASK;
+        char *comp_path = ecs_get_fullpath(world, comp_e);
         
         ecs_strbuf_list_next(str);
         ecs_strbuf_list_push(str, "[", ",");
-
-        if (comp_id) {
-            ecs_strbuf_list_append(str, "\"%s\"", comp_id);
-        } else {
-            ecs_strbuf_list_append(str, "%d", (int32_t)comp);
-        }
 
         if ((comp & ECS_ENTITY_MASK) != comp) {
             if (comp & ECS_CHILDOF) {
@@ -375,30 +370,39 @@ void serialize_type(
              }
         }
 
+        if (comp_path) {
+            ecs_strbuf_list_append(str, "\"%s\"", comp_path);
+        } else {
+            ecs_strbuf_list_append(str, "%d", (int32_t)comp);
+        }
+
         ecs_strbuf_list_pop(str, "]");
+
+        ecs_os_free(comp_path);
     }
 
     ecs_strbuf_list_pop(str, "]");
 }
 
-char* ecs_filter_to_json(
-    ecs_world_t *world, 
-    ecs_filter_t *filter)
+char* ecs_iter_to_json(
+    ecs_world_t *world,
+    ecs_iter_t *it,
+    ecs_iter_next_action_t iter_next,
+    ecs_type_t select)
 {
     ecs_strbuf_t str = ECS_STRBUF_INIT;
-    ecs_iter_t it = ecs_filter_iter(world, filter);
     ecs_entity_t ecs_entity(EcsMetaTypeSerializer) = 
         ecs_lookup_fullpath(world, "flecs.meta.MetaTypeSerializer");
     ecs_assert(ecs_entity(EcsMetaTypeSerializer) != 0, ECS_INTERNAL_ERROR, NULL);
 
     ecs_strbuf_list_push(&str, "[", ",");
 
-    while (ecs_filter_next(&it)) {
-        ecs_type_t table_type = ecs_iter_type(&it);
+    while (iter_next(it)) {
+        ecs_type_t table_type = ecs_iter_type(it);
         ecs_entity_t *comps = ecs_vector_first(table_type, ecs_entity_t);
         int32_t i, count = ecs_vector_count(table_type);
 
-        if (!it.count) {
+        if (!it->count) {
             continue;
         }
 
@@ -411,8 +415,8 @@ char* ecs_filter_to_json(
         /* Add entity identifiers */
         ecs_strbuf_list_appendstr(&str, "\"entities\":");
         ecs_strbuf_list_push(&str, "[", ",");
-        for (i = 0; i < it.count; i ++) {
-            ecs_strbuf_list_append(&str, "%d", (int32_t)it.entities[i]);
+        for (i = 0; i < it->count; i ++) {
+            ecs_strbuf_list_append(&str, "%d", (int32_t)it->entities[i]);
         }
         ecs_strbuf_list_pop(&str, "]");
 
@@ -421,6 +425,11 @@ char* ecs_filter_to_json(
         ecs_strbuf_list_push(&str, "{", ",");
 
         for (i = 0; i < count; i ++) {
+            if (select) {
+                if (!ecs_type_has_entity(world, select, comps[i])) {
+                    continue;
+                }
+            }
             const EcsMetaTypeSerializer *ser = ecs_get(
                     world, comps[i], EcsMetaTypeSerializer);
                 
@@ -429,11 +438,12 @@ char* ecs_filter_to_json(
                 continue;
             }
 
-            ecs_strbuf_list_append(
-                &str, "\"%s\":", ecs_get_name(world, comps[i]));
+            char *comp_path = ecs_get_fullpath(world, comps[i]);
+            ecs_strbuf_list_append(&str, "\"%s\":", comp_path);
+            ecs_os_free(comp_path);
 
             json_ser_column(
-                world, ser, ecs_table_column(&it, i), it.count, &str);
+                world, ser, ecs_table_column(it, i), it->count, &str);
         }
 
         ecs_strbuf_list_pop(&str, "}");
@@ -447,7 +457,8 @@ char* ecs_filter_to_json(
 
 char* ecs_entity_to_json(
     ecs_world_t *world, 
-    ecs_entity_t entity)
+    ecs_entity_t entity,
+    ecs_type_t select)
 {
     ecs_strbuf_t str = ECS_STRBUF_INIT;
     ecs_entity_t ecs_entity(EcsMetaTypeSerializer) = 
@@ -463,6 +474,11 @@ char* ecs_entity_to_json(
     /* Serialize entity id */
     ecs_strbuf_list_append(&str, "\"entity\":%d", (int32_t)entity);
 
+    /* Serialize entity path */
+    char *path = ecs_get_fullpath(world, entity);
+    ecs_strbuf_list_append(&str, "\"path\":\"%s\"", path);
+    ecs_os_free(path);
+
     /* Serialize data */
     if (type) {
         ecs_strbuf_list_appendstr(&str, "\"data\":");
@@ -471,6 +487,12 @@ char* ecs_entity_to_json(
         int i, count = ecs_vector_count(type);
         ecs_entity_t *comps = ecs_vector_first(type, ecs_entity_t);
         for (i = 0; i < count; i ++) {
+            if (select) {
+                if (!ecs_type_has_entity(world, select, comps[i])) {
+                    continue;
+                }
+            }
+
             const EcsMetaTypeSerializer *ser = ecs_get(
                     world, comps[i], EcsMetaTypeSerializer);
                 
@@ -478,9 +500,10 @@ char* ecs_entity_to_json(
             if (!ser) {
                 continue;
             }
-
-            ecs_strbuf_list_append(&str, "\"%s\":", 
-                ecs_get_name(world, comps[i]));
+            
+            char *comp_path = ecs_get_fullpath(world, comps[i]);
+            ecs_strbuf_list_append(&str, "\"%s\":", comp_path);
+            ecs_os_free(comp_path);
 
             const void *comp_ptr = ecs_get_w_entity(world, entity, comps[i]);
             ecs_assert(comp_ptr != NULL, ECS_INTERNAL_ERROR, NULL);
