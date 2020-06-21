@@ -348,21 +348,22 @@ void serialize_type(
     ecs_type_t type,
     ecs_strbuf_t *str)
 {
-    ecs_strbuf_list_appendstr(str, "\"type\":");
-
     ecs_strbuf_list_push(str, "[", ",");
 
     int i, count = ecs_vector_count(type);
     ecs_entity_t *comps = ecs_vector_first(type, ecs_entity_t);
     for (i = 0; i < count; i ++) {
         ecs_entity_t comp = comps[i];
+        bool has_mask = (comp & ECS_ENTITY_MASK) != comp;
         ecs_entity_t comp_e = comp & ECS_ENTITY_MASK;
         char *comp_path = ecs_get_fullpath(world, comp_e);
         
-        ecs_strbuf_list_next(str);
-        ecs_strbuf_list_push(str, "[", ",");
+        if (has_mask) {
+            ecs_strbuf_list_next(str);
+            ecs_strbuf_list_push(str, "[", ",");
+        }
 
-        if ((comp & ECS_ENTITY_MASK) != comp) {
+        if (has_mask) {
             if (comp & ECS_CHILDOF) {
                 ecs_strbuf_list_append(str, "\"CHILDOF\"");
              } else if (comp & ECS_INSTANCEOF) {
@@ -376,12 +377,23 @@ void serialize_type(
             ecs_strbuf_list_append(str, "%d", (int32_t)comp);
         }
 
-        ecs_strbuf_list_pop(str, "]");
+        if (has_mask) {
+            ecs_strbuf_list_pop(str, "]");
+        }
 
         ecs_os_free(comp_path);
     }
 
     ecs_strbuf_list_pop(str, "]");
+}
+
+char* ecs_type_to_json(
+    ecs_world_t *world,
+    ecs_type_t type)
+{
+    ecs_strbuf_t str = ECS_STRBUF_INIT;
+    serialize_type(world, type, &str);
+    return ecs_strbuf_get(&str);
 }
 
 char* ecs_iter_to_json(
@@ -410,6 +422,7 @@ char* ecs_iter_to_json(
         ecs_strbuf_list_push(&str, "{", ",");
 
         /* Serialize type */
+        ecs_strbuf_list_appendstr(&str, "\"type\":");
         serialize_type(world, table_type, &str);
 
         /* Add entity identifiers */
@@ -469,6 +482,7 @@ char* ecs_entity_to_json(
 
     /* Serialize type */
     ecs_type_t type = ecs_get_type(world, entity);
+    ecs_strbuf_list_appendstr(&str, "\"type\":");
     serialize_type(world, type, &str);
 
     /* Serialize entity id */
