@@ -7,14 +7,14 @@ static
 void json_ser_type(
     ecs_world_t *world,
     ecs_vector_t *ser, 
-    void *base, 
+    const void *base, 
     ecs_strbuf_t *str);
 
 static
 void json_ser_type_op(
     ecs_world_t *world,
     ecs_type_op_t *op, 
-    void *base,
+    const void *base,
     ecs_strbuf_t *str);
 
 /* Serialize a primitive value */
@@ -22,7 +22,7 @@ static
 void json_ser_primitive(
     ecs_world_t *world,
     ecs_type_op_t *op, 
-    void *base, 
+    const void *base, 
     ecs_strbuf_t *str) 
 {
     const char *bool_str[] = { "false", "true" };
@@ -88,7 +88,7 @@ void json_ser_primitive(
     }
     case EcsEntity:
         ecs_strbuf_appendstrn(str, "\"", 1);
-        ecs_strbuf_appendstr(str, ecs_get_id(world, *(ecs_entity_t*)base));
+        ecs_strbuf_appendstr(str, ecs_get_name(world, *(ecs_entity_t*)base));
         ecs_strbuf_appendstrn(str, "\"", 1);
         break;
     }
@@ -97,17 +97,19 @@ void json_ser_primitive(
 /* Serialize enumeration */
 static
 void json_ser_enum(
+    ecs_world_t *world,
     ecs_type_op_t *op, 
-    void *base, 
+    const void *base, 
     ecs_strbuf_t *str) 
 {
-    ecs_assert(op->is.constant != NULL, ECS_INVALID_PARAMETER, NULL);
+    const EcsEnum *enum_type = ecs_get_ref_w_entity(world, &op->is.constant, 0, 0);
+    ecs_assert(enum_type != NULL, ECS_INVALID_PARAMETER, NULL);
 
     int32_t value = *(int32_t*)base;
     
     /* Enumeration constants are stored in a map that is keyed on the
      * enumeration value. */
-    char **constant = ecs_map_get(op->is.constant, char*, value);
+    char **constant = ecs_map_get(enum_type->constants, char*, value);
     ecs_assert(constant != NULL, ECS_INVALID_PARAMETER, NULL);
 
     ecs_strbuf_appendstrn(str, "\"", 1);
@@ -118,11 +120,13 @@ void json_ser_enum(
 /* Serialize bitmask */
 static
 void json_ser_bitmask(
+    ecs_world_t *world,
     ecs_type_op_t *op, 
-    void *base, 
+    const void *base, 
     ecs_strbuf_t *str) 
 {
-    ecs_assert(op->is.constant != NULL, ECS_INVALID_PARAMETER, NULL);
+    const EcsBitmask *bitmask_type = ecs_get_ref_w_entity(world, &op->is.constant, 0, 0);
+    ecs_assert(bitmask_type != NULL, ECS_INVALID_PARAMETER, NULL);
 
     int32_t value = *(int32_t*)base;
     ecs_map_key_t key;
@@ -132,7 +136,7 @@ void json_ser_bitmask(
 
     /* Multiple flags can be set at a given time. Iterate through all the flags
      * and append the ones that are set. */
-    ecs_map_iter_t it = ecs_map_iter(op->is.constant);
+    ecs_map_iter_t it = ecs_map_iter(bitmask_type->constants);
     while ((constant = ecs_map_next(&it, char*, &key))) {
         if ((value & key) == key) {
             ecs_strbuf_list_append(str, "\"%s\"", *constant);
@@ -147,14 +151,14 @@ static
 void json_ser_elements(
     ecs_world_t *world,
     ecs_vector_t *elem_ops, 
-    void *base, 
+    const void *base, 
     int32_t elem_count, 
     int32_t elem_size,
     ecs_strbuf_t *str)
 {
     ecs_strbuf_list_push(str, "[", ",");
 
-    void *ptr = base;
+    const void *ptr = base;
 
     int i;
     for (i = 0; i < elem_count; i ++) {
@@ -174,7 +178,10 @@ void json_ser_array(
     void *base, 
     ecs_strbuf_t *str) 
 {
-    json_ser_elements(world, op->is.collection, base, op->count, op->size, str);
+    const EcsMetaTypeSerializer *ser = ecs_get_ref_w_entity(world, &op->is.collection, 0, 0);
+    ecs_assert(ser != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    json_ser_elements(world, ser->ops, base, op->count, op->size, str);
 }
 
 /* Serialize vector */
@@ -182,16 +189,20 @@ static
 void json_ser_vector(
     ecs_world_t *world,
     ecs_type_op_t *op, 
-    void *base, 
+    const void *base, 
     ecs_strbuf_t *str) 
 {
     ecs_vector_t *value = *(ecs_vector_t**)base;
     
     int32_t count = ecs_vector_count(value);
-    void *array = ecs_vector_first(value);
-    ecs_vector_t *elem_ops = op->is.collection;
+    void *array = ecs_vector_first_t(value, op->size, op->alignment);
+
+    const EcsMetaTypeSerializer *ser = ecs_get_ref_w_entity(world, &op->is.collection, 0, 0);
+    ecs_assert(ser != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    ecs_vector_t *elem_ops = ser->ops;
     
-    ecs_type_op_t *elem_op_hdr = (ecs_type_op_t*)ecs_vector_first(elem_ops);
+    ecs_type_op_t *elem_op_hdr = (ecs_type_op_t*)ecs_vector_first(elem_ops, ecs_type_op_t);
     ecs_assert(elem_op_hdr != NULL, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(elem_op_hdr->kind == EcsOpHeader, ECS_INTERNAL_ERROR, NULL);
     size_t elem_size = elem_op_hdr->size;
@@ -205,10 +216,23 @@ static
 void json_ser_map(
     ecs_world_t *world,
     ecs_type_op_t *op, 
-    void *base, 
+    const void *base, 
     ecs_strbuf_t *str) 
 {
     ecs_map_t *value = *(ecs_map_t**)base;
+
+    const EcsMetaTypeSerializer *key_ser = ecs_get_ref_w_entity(world, &op->is.map.key, 0, 0);
+    ecs_assert(key_ser != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    const EcsMetaTypeSerializer *elem_ser = ecs_get_ref_w_entity(world, &op->is.map.element, 0, 0);
+    ecs_assert(elem_ser != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    /* 2 instructions, one for the header */
+    ecs_assert(ecs_vector_count(key_ser->ops) == 2, ECS_INTERNAL_ERROR, NULL);
+
+    ecs_type_op_t *key_op = ecs_vector_first(key_ser->ops, ecs_type_op_t);
+    ecs_assert(key_op->kind == EcsOpHeader, ECS_INTERNAL_ERROR, NULL);
+    key_op = &key_op[1];
 
     ecs_map_iter_t it = ecs_map_iter(value);  
     ecs_map_key_t key; 
@@ -219,10 +243,10 @@ void json_ser_map(
     while ((ptr = _ecs_map_next(&it, 0, &key))) {
         ecs_strbuf_list_next(str);
         ecs_strbuf_appendstrn(str, "\"", 1);
-        json_ser_type_op(world, op->is.map.key_op, (void*)&key, str);
+        json_ser_type_op(world, key_op, (void*)&key, str);
         ecs_strbuf_appendstrn(str, "\"", 1);
         ecs_strbuf_appendstr(str, ":");
-        json_ser_type(world, op->is.map.element_ops, ptr, str);
+        json_ser_type(world, elem_ser->ops, ptr, str);
 
         key = 0;
     }
@@ -235,7 +259,7 @@ static
 void json_ser_type_op(
     ecs_world_t *world,
     ecs_type_op_t *op, 
-    void *base,
+    const void *base,
     ecs_strbuf_t *str) 
 {
     switch(op->kind) {
@@ -249,10 +273,10 @@ void json_ser_type_op(
         json_ser_primitive(world, op, ECS_OFFSET(base, op->offset), str);
         break;
     case EcsOpEnum:
-        json_ser_enum(op, ECS_OFFSET(base, op->offset), str);
+        json_ser_enum(world, op, ECS_OFFSET(base, op->offset), str);
         break;
     case EcsOpBitmask:
-        json_ser_bitmask(op, ECS_OFFSET(base, op->offset), str);
+        json_ser_bitmask(world, op, ECS_OFFSET(base, op->offset), str);
         break;
     case EcsOpArray:
         json_ser_array(world, op, ECS_OFFSET(base, op->offset), str);
@@ -271,10 +295,10 @@ static
 void json_ser_type(
     ecs_world_t *world,
     ecs_vector_t *ser, 
-    void *base, 
+    const void *base, 
     ecs_strbuf_t *str) 
 {
-    ecs_type_op_t *ops = (ecs_type_op_t*)ecs_vector_first(ser);
+    ecs_type_op_t *ops = (ecs_type_op_t*)ecs_vector_first(ser, ecs_type_op_t);
     int32_t count = ecs_vector_count(ser);
 
     for (int i = 0; i < count; i ++) {
@@ -309,8 +333,8 @@ char* ecs_ptr_to_json(
     ecs_entity_t type, 
     void* ptr)
 {
-    ecs_entity_t ecs_entity(EcsTypeSerializer) = ecs_lookup(world, "EcsTypeSerializer");
-    EcsTypeSerializer *ser = ecs_get_ptr(world, type, EcsTypeSerializer);
+    ecs_entity_t ecs_entity(EcsMetaTypeSerializer) = ecs_lookup(world, "EcsMetaTypeSerializer");
+    const EcsMetaTypeSerializer *ser = ecs_get(world, type, EcsMetaTypeSerializer);
     ecs_assert(ser != NULL, ECS_INVALID_PARAMETER, NULL);
 
     ecs_strbuf_t str = ECS_STRBUF_INIT;
@@ -320,13 +344,13 @@ char* ecs_ptr_to_json(
 
 void json_ser_column(
     ecs_world_t *world,
-    EcsTypeSerializer *ser, 
+    const EcsMetaTypeSerializer *ser, 
     void *ptr,
     int32_t count,
     ecs_strbuf_t *str)
 {
     ecs_vector_t *ops = ser->ops;
-    ecs_type_op_t *hdr = ecs_vector_first(ops);
+    ecs_type_op_t *hdr = ecs_vector_first(ops, ecs_type_op_t);
     ecs_assert(hdr->kind == EcsOpHeader, ECS_INTERNAL_ERROR, NULL);
     int32_t size = hdr->size;
 
@@ -348,26 +372,22 @@ void serialize_type(
     ecs_type_t type,
     ecs_strbuf_t *str)
 {
-    ecs_strbuf_list_appendstr(str, "\"type\":");
-
     ecs_strbuf_list_push(str, "[", ",");
 
     int i, count = ecs_vector_count(type);
-    ecs_entity_t *comps = ecs_vector_first(type);
+    ecs_entity_t *comps = ecs_vector_first(type, ecs_entity_t);
     for (i = 0; i < count; i ++) {
         ecs_entity_t comp = comps[i];
-        const char *comp_id = ecs_get_id(world, comp);
+        bool has_mask = (comp & ECS_ENTITY_MASK) != comp;
+        ecs_entity_t comp_e = comp & ECS_ENTITY_MASK;
+        char *comp_path = ecs_get_fullpath(world, comp_e);
         
-        ecs_strbuf_list_next(str);
-        ecs_strbuf_list_push(str, "[", ",");
-
-        if (comp_id) {
-            ecs_strbuf_list_append(str, "\"%s\"", comp_id);
-        } else {
-            ecs_strbuf_list_append(str, "%d", (int32_t)comp);
+        if (has_mask) {
+            ecs_strbuf_list_next(str);
+            ecs_strbuf_list_push(str, "[", ",");
         }
 
-        if ((comp & ECS_ENTITY_MASK) != comp) {
+        if (has_mask) {
             if (comp & ECS_CHILDOF) {
                 ecs_strbuf_list_append(str, "\"CHILDOF\"");
              } else if (comp & ECS_INSTANCEOF) {
@@ -375,31 +395,50 @@ void serialize_type(
              }
         }
 
-        ecs_strbuf_list_pop(str, "]");
+        if (comp_path) {
+            ecs_strbuf_list_append(str, "\"%s\"", comp_path);
+        } else {
+            ecs_strbuf_list_append(str, "%d", (int32_t)comp);
+        }
+
+        if (has_mask) {
+            ecs_strbuf_list_pop(str, "]");
+        }
+
+        ecs_os_free(comp_path);
     }
 
     ecs_strbuf_list_pop(str, "]");
 }
 
-char* ecs_filter_to_json(
-    ecs_world_t *world, 
-    ecs_filter_t *filter)
+char* ecs_type_to_json(
+    ecs_world_t *world,
+    ecs_type_t type)
 {
     ecs_strbuf_t str = ECS_STRBUF_INIT;
-    ecs_filter_iter_t it = ecs_filter_iter(world, filter);
-    ecs_entity_t ecs_entity(EcsTypeSerializer) = ecs_lookup(world, "EcsTypeSerializer");
-    ecs_assert(ecs_entity(EcsTypeSerializer) != 0, ECS_INTERNAL_ERROR, NULL);
+    serialize_type(world, type, &str);
+    return ecs_strbuf_get(&str);
+}
+
+char* ecs_iter_to_json(
+    ecs_world_t *world,
+    ecs_iter_t *it,
+    ecs_iter_next_action_t iter_next,
+    ecs_type_t select)
+{
+    ecs_strbuf_t str = ECS_STRBUF_INIT;
+    ecs_entity_t ecs_entity(EcsMetaTypeSerializer) = 
+        ecs_lookup_fullpath(world, "flecs.meta.MetaTypeSerializer");
+    ecs_assert(ecs_entity(EcsMetaTypeSerializer) != 0, ECS_INTERNAL_ERROR, NULL);
 
     ecs_strbuf_list_push(&str, "[", ",");
 
-    while (ecs_filter_next(&it)) {
-        ecs_rows_t *rows = &it.rows;
-
-        ecs_type_t table_type = ecs_table_type(rows);
-        ecs_entity_t *comps = ecs_vector_first(table_type);
+    while (iter_next(it)) {
+        ecs_type_t table_type = ecs_iter_type(it);
+        ecs_entity_t *comps = ecs_vector_first(table_type, ecs_entity_t);
         int32_t i, count = ecs_vector_count(table_type);
 
-        if (!rows->count) {
+        if (!it->count) {
             continue;
         }
 
@@ -407,13 +446,14 @@ char* ecs_filter_to_json(
         ecs_strbuf_list_push(&str, "{", ",");
 
         /* Serialize type */
+        ecs_strbuf_list_appendstr(&str, "\"type\":");
         serialize_type(world, table_type, &str);
 
         /* Add entity identifiers */
         ecs_strbuf_list_appendstr(&str, "\"entities\":");
         ecs_strbuf_list_push(&str, "[", ",");
-        for (i = 0; i < rows->count; i ++) {
-            ecs_strbuf_list_append(&str, "%d", (int32_t)rows->entities[i]);
+        for (i = 0; i < it->count; i ++) {
+            ecs_strbuf_list_append(&str, "%d", (int32_t)it->entities[i]);
         }
         ecs_strbuf_list_pop(&str, "]");
 
@@ -422,19 +462,25 @@ char* ecs_filter_to_json(
         ecs_strbuf_list_push(&str, "{", ",");
 
         for (i = 0; i < count; i ++) {
-            EcsTypeSerializer *ser = ecs_get_ptr(
-                    world, comps[i], EcsTypeSerializer);
+            if (select) {
+                if (!ecs_type_has_entity(world, select, comps[i])) {
+                    continue;
+                }
+            }
+            const EcsMetaTypeSerializer *ser = ecs_get(
+                    world, comps[i], EcsMetaTypeSerializer);
                 
             /* Don't serialize if there's no metadata for component */
             if (!ser) {
                 continue;
             }
 
-            ecs_strbuf_list_append(
-                &str, "\"%s\":", ecs_get_id(world, comps[i]));
+            char *comp_path = ecs_get_fullpath(world, comps[i]);
+            ecs_strbuf_list_append(&str, "\"%s\":", comp_path);
+            ecs_os_free(comp_path);
 
             json_ser_column(
-                world, ser, ecs_table_column(rows, i), rows->count, &str);
+                world, ser, ecs_table_column(it, i), it->count, &str);
         }
 
         ecs_strbuf_list_pop(&str, "}");
@@ -448,20 +494,28 @@ char* ecs_filter_to_json(
 
 char* ecs_entity_to_json(
     ecs_world_t *world, 
-    ecs_entity_t entity)
+    ecs_entity_t entity,
+    ecs_type_t select)
 {
     ecs_strbuf_t str = ECS_STRBUF_INIT;
-    ecs_entity_t ecs_entity(EcsTypeSerializer) = ecs_lookup(world, "EcsTypeSerializer");
-    ecs_assert(ecs_entity(EcsTypeSerializer) != 0, ECS_INTERNAL_ERROR, NULL);
+    ecs_entity_t ecs_entity(EcsMetaTypeSerializer) = 
+        ecs_lookup_fullpath(world, "flecs.meta.MetaTypeSerializer");
+    ecs_assert(ecs_entity(EcsMetaTypeSerializer) != 0, ECS_INTERNAL_ERROR, NULL);
 
     ecs_strbuf_list_push(&str, "{", ",");
 
     /* Serialize type */
     ecs_type_t type = ecs_get_type(world, entity);
+    ecs_strbuf_list_appendstr(&str, "\"type\":");
     serialize_type(world, type, &str);
 
     /* Serialize entity id */
     ecs_strbuf_list_append(&str, "\"entity\":%d", (int32_t)entity);
+
+    /* Serialize entity path */
+    char *path = ecs_get_fullpath(world, entity);
+    ecs_strbuf_list_append(&str, "\"path\":\"%s\"", path);
+    ecs_os_free(path);
 
     /* Serialize data */
     if (type) {
@@ -469,20 +523,27 @@ char* ecs_entity_to_json(
         ecs_strbuf_list_push(&str, "{", ",");
 
         int i, count = ecs_vector_count(type);
-        ecs_entity_t *comps = ecs_vector_first(type);
+        ecs_entity_t *comps = ecs_vector_first(type, ecs_entity_t);
         for (i = 0; i < count; i ++) {
-            EcsTypeSerializer *ser = ecs_get_ptr(
-                    world, comps[i], EcsTypeSerializer);
+            if (select) {
+                if (!ecs_type_has_entity(world, select, comps[i])) {
+                    continue;
+                }
+            }
+
+            const EcsMetaTypeSerializer *ser = ecs_get(
+                    world, comps[i], EcsMetaTypeSerializer);
                 
             /* Don't serialize if there's no metadata for component */
             if (!ser) {
                 continue;
             }
+            
+            char *comp_path = ecs_get_fullpath(world, comps[i]);
+            ecs_strbuf_list_append(&str, "\"%s\":", comp_path);
+            ecs_os_free(comp_path);
 
-            ecs_strbuf_list_append(&str, "\"%s\":", 
-                ecs_get_id(world, comps[i]));
-
-            void *comp_ptr = _ecs_get_ptr(world, entity, comps[i]);
+            const void *comp_ptr = ecs_get_w_entity(world, entity, comps[i]);
             ecs_assert(comp_ptr != NULL, ECS_INTERNAL_ERROR, NULL);
 
             json_ser_type(world, ser->ops, comp_ptr, &str);

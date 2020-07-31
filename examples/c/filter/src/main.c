@@ -14,7 +14,7 @@ ECS_ENUM(Color, {
 int main(int argc, char *argv[]) {
     ecs_world_t *world = ecs_init_w_args(argc, argv);
 
-    ECS_IMPORT(world, FlecsComponentsMeta, 0);
+    ECS_IMPORT(world, FlecsMeta);
 
     ECS_META(world, Position);
     ECS_META(world, Color);

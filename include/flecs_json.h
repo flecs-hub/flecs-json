@@ -8,18 +8,29 @@
 extern "C" {
 #endif
 
+FLECS_JSON_EXPORT
 char* ecs_ptr_to_json(
     ecs_world_t *world, 
     ecs_entity_t type,
     void *ptr);
 
+FLECS_JSON_EXPORT
 char* ecs_entity_to_json(
     ecs_world_t *world, 
-    ecs_entity_t e);
+    ecs_entity_t e,
+    ecs_type_t select);
 
-char* ecs_filter_to_json(
+FLECS_JSON_EXPORT
+char* ecs_iter_to_json(
     ecs_world_t *world, 
-    ecs_filter_t *filter);
+    ecs_iter_t *it,
+    ecs_iter_next_action_t iter_next,
+    ecs_type_t select);
+
+FLECS_JSON_EXPORT
+char* ecs_type_to_json(
+    ecs_world_t *world,
+    ecs_type_t type);
 
 #ifdef __cplusplus
 }

@@ -19,24 +19,19 @@
 
 /* Headers of public dependencies */
 #include <flecs.h>
-#include <flecs_components_meta.h>
-
-/* Headers of private dependencies */
-#ifdef FLECS_JSON_IMPL
-/* No dependencies */
-#endif
+#include <flecs_meta.h>
 
 /* Convenience macro for exporting symbols */
-#ifndef FLECS_JSON_STATIC
-  #if FLECS_JSON_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define FLECS_JSON_EXPORT __declspec(dllexport)
-  #elif FLECS_JSON_IMPL
-    #define FLECS_JSON_EXPORT __attribute__((__visibility__("default")))
-  #elif defined _MSC_VER
-    #define FLECS_JSON_EXPORT __declspec(dllimport)
-  #else
-    #define FLECS_JSON_EXPORT
-  #endif
+#ifndef flecs_json_STATIC
+#if flecs_json_EXPORTS && (defined(_MSC_VER) || defined(__MINGW32__))
+  #define FLECS_JSON_EXPORT __declspec(dllexport)
+#elif flecs_json_EXPORTS
+  #define FLECS_JSON_EXPORT __attribute__((__visibility__("default")))
+#elif defined _MSC_VER
+  #define FLECS_JSON_EXPORT __declspec(dllimport)
+#else
+  #define FLECS_JSON_EXPORT
+#endif
 #else
   #define FLECS_JSON_EXPORT
 #endif
