@@ -56,13 +56,13 @@ std::string to_json(flecs::world& world, flecs::entity type, T& data) {
 
 template <typename T>
 std::string to_json(flecs::world& world, T& data) {
-    entity_t type = component_base<T>::s_entity;
+    entity_t type = _::component_info<T>::s_entity;
     return flecs::to_json(world, type, data);
 }
 
 template <>
 std::string to_json<flecs::entity>(flecs::world& world, flecs::entity& entity) {
-    char *str = ecs_entity_to_json(world.c_ptr(), entity.id());
+    char *str = ecs_entity_to_json(world.c_ptr(), entity.id(), nullptr);
     std::string result = std::string(str);
     free(str);
     return result;

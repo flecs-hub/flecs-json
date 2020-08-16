@@ -388,9 +388,9 @@ void serialize_type(
         }
 
         if (has_mask) {
-            if (comp & ECS_CHILDOF) {
+            if (ECS_HAS_ROLE(comp, CHILDOF)) {
                 ecs_strbuf_list_append(str, "\"CHILDOF\"");
-             } else if (comp & ECS_INSTANCEOF) {
+             } else if (ECS_HAS_ROLE(comp, INSTANCEOF)) {
                 ecs_strbuf_list_append(str, "\"INSTANCEOF\"");
              }
         }
