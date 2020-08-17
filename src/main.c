@@ -378,30 +378,31 @@ void serialize_type(
     ecs_entity_t *comps = ecs_vector_first(type, ecs_entity_t);
     for (i = 0; i < count; i ++) {
         ecs_entity_t comp = comps[i];
-        bool has_mask = (comp & ECS_ENTITY_MASK) != comp;
+        bool has_role = (comp & ECS_ENTITY_MASK) != comp;
         ecs_entity_t comp_e = comp & ECS_ENTITY_MASK;
-        char *comp_path = ecs_get_fullpath(world, comp_e);
         
-        if (has_mask) {
+        if (has_role) {
             ecs_strbuf_list_next(str);
             ecs_strbuf_list_push(str, "[", ",");
+            ecs_strbuf_list_append(str, "\"%s\"", ecs_role_str(comp));
         }
 
-        if (has_mask) {
-            if (ECS_HAS_ROLE(comp, CHILDOF)) {
-                ecs_strbuf_list_append(str, "\"CHILDOF\"");
-             } else if (ECS_HAS_ROLE(comp, INSTANCEOF)) {
-                ecs_strbuf_list_append(str, "\"INSTANCEOF\"");
-             }
+        if (ECS_HAS_ROLE(comp, TRAIT)) {
+            ecs_entity_t hi = ecs_entity_t_hi(comp_e);
+            char *hi_path = ecs_get_fullpath(world, hi);
+            ecs_strbuf_list_append(str, "\"%s\"", hi_path);
+            ecs_os_free(hi_path);
+            comp_e = ecs_entity_t_lo(comp_e);
         }
 
+        char *comp_path = ecs_get_fullpath(world, comp_e);
         if (comp_path) {
             ecs_strbuf_list_append(str, "\"%s\"", comp_path);
         } else {
             ecs_strbuf_list_append(str, "%d", (int32_t)comp);
         }
 
-        if (has_mask) {
+        if (has_role) {
             ecs_strbuf_list_pop(str, "]");
         }
 
