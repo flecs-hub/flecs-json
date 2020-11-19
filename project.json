@@ -7,7 +7,6 @@
         "use": [
             "flecs",
             "flecs.meta"
-        ],
-        "amalgamate": true
+        ]
     }
 }

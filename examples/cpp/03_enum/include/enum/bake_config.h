@@ -30,16 +30,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef ENUM_STATIC
   #if ENUM_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define ENUM_EXPORT __declspec(dllexport)
+    #define ENUM_API __declspec(dllexport)
   #elif ENUM_IMPL
-    #define ENUM_EXPORT __attribute__((__visibility__("default")))
+    #define ENUM_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define ENUM_EXPORT __declspec(dllimport)
+    #define ENUM_API __declspec(dllimport)
   #else
-    #define ENUM_EXPORT
+    #define ENUM_API
   #endif
 #else
-  #define ENUM_EXPORT
+  #define ENUM_API
 #endif
 
 #endif

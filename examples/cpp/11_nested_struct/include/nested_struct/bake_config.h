@@ -30,16 +30,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef NESTED_STRUCT_STATIC
   #if NESTED_STRUCT_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define NESTED_STRUCT_EXPORT __declspec(dllexport)
+    #define NESTED_STRUCT_API __declspec(dllexport)
   #elif NESTED_STRUCT_IMPL
-    #define NESTED_STRUCT_EXPORT __attribute__((__visibility__("default")))
+    #define NESTED_STRUCT_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define NESTED_STRUCT_EXPORT __declspec(dllimport)
+    #define NESTED_STRUCT_API __declspec(dllimport)
   #else
-    #define NESTED_STRUCT_EXPORT
+    #define NESTED_STRUCT_API
   #endif
 #else
-  #define NESTED_STRUCT_EXPORT
+  #define NESTED_STRUCT_API
 #endif
 
 #endif

@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     Vert2D v = { { 10, 20 } };
 
     /* Pretty print the value */
-    char *str = ecs_ptr_to_json(world, ecs_entity(Vert2D), &v);
+    char *str = ecs_ptr_to_json(world, ecs_typeid(Vert2D), &v);
     printf("%s\n", str);
     free(str);
 

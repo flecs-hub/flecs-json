@@ -30,16 +30,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef SERIALIZE_TYPE_STATIC
   #if SERIALIZE_TYPE_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define SERIALIZE_TYPE_EXPORT __declspec(dllexport)
+    #define SERIALIZE_TYPE_API __declspec(dllexport)
   #elif SERIALIZE_TYPE_IMPL
-    #define SERIALIZE_TYPE_EXPORT __attribute__((__visibility__("default")))
+    #define SERIALIZE_TYPE_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define SERIALIZE_TYPE_EXPORT __declspec(dllimport)
+    #define SERIALIZE_TYPE_API __declspec(dllimport)
   #else
-    #define SERIALIZE_TYPE_EXPORT
+    #define SERIALIZE_TYPE_API
   #endif
 #else
-  #define SERIALIZE_TYPE_EXPORT
+  #define SERIALIZE_TYPE_API
 #endif
 
 #endif

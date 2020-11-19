@@ -30,16 +30,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef VECTOR_STATIC
   #if VECTOR_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define VECTOR_EXPORT __declspec(dllexport)
+    #define VECTOR_API __declspec(dllexport)
   #elif VECTOR_IMPL
-    #define VECTOR_EXPORT __attribute__((__visibility__("default")))
+    #define VECTOR_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define VECTOR_EXPORT __declspec(dllimport)
+    #define VECTOR_API __declspec(dllimport)
   #else
-    #define VECTOR_EXPORT
+    #define VECTOR_API
   #endif
 #else
-  #define VECTOR_EXPORT
+  #define VECTOR_API
 #endif
 
 #endif

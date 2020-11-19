@@ -29,16 +29,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef BITMASK_STATIC
   #if BITMASK_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define BITMASK_EXPORT __declspec(dllexport)
+    #define BITMASK_API __declspec(dllexport)
   #elif BITMASK_IMPL
-    #define BITMASK_EXPORT __attribute__((__visibility__("default")))
+    #define BITMASK_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define BITMASK_EXPORT __declspec(dllimport)
+    #define BITMASK_API __declspec(dllimport)
   #else
-    #define BITMASK_EXPORT
+    #define BITMASK_API
   #endif
 #else
-  #define BITMASK_EXPORT
+  #define BITMASK_API
 #endif
 
 #endif

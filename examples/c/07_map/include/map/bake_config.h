@@ -29,16 +29,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef MAP_STATIC
   #if MAP_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define MAP_EXPORT __declspec(dllexport)
+    #define MAP_API __declspec(dllexport)
   #elif MAP_IMPL
-    #define MAP_EXPORT __attribute__((__visibility__("default")))
+    #define MAP_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define MAP_EXPORT __declspec(dllimport)
+    #define MAP_API __declspec(dllimport)
   #else
-    #define MAP_EXPORT
+    #define MAP_API
   #endif
 #else
-  #define MAP_EXPORT
+  #define MAP_API
 #endif
 
 #endif

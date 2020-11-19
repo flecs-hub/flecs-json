@@ -30,16 +30,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef FILTER_STATIC
   #if FILTER_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define FILTER_EXPORT __declspec(dllexport)
+    #define FILTER_API __declspec(dllexport)
   #elif FILTER_IMPL
-    #define FILTER_EXPORT __attribute__((__visibility__("default")))
+    #define FILTER_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define FILTER_EXPORT __declspec(dllimport)
+    #define FILTER_API __declspec(dllimport)
   #else
-    #define FILTER_EXPORT
+    #define FILTER_API
   #endif
 #else
-  #define FILTER_EXPORT
+  #define FILTER_API
 #endif
 
 #endif

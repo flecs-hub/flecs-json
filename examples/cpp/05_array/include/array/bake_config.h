@@ -30,16 +30,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef ARRAY_STATIC
   #if ARRAY_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define ARRAY_EXPORT __declspec(dllexport)
+    #define ARRAY_API __declspec(dllexport)
   #elif ARRAY_IMPL
-    #define ARRAY_EXPORT __attribute__((__visibility__("default")))
+    #define ARRAY_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define ARRAY_EXPORT __declspec(dllimport)
+    #define ARRAY_API __declspec(dllimport)
   #else
-    #define ARRAY_EXPORT
+    #define ARRAY_API
   #endif
 #else
-  #define ARRAY_EXPORT
+  #define ARRAY_API
 #endif
 
 #endif

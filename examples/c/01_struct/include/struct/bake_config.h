@@ -29,16 +29,16 @@
 /* Convenience macro for exporting symbols */
 #ifndef STRUCT_STATIC
   #if STRUCT_IMPL && (defined(_MSC_VER) || defined(__MINGW32__))
-    #define STRUCT_EXPORT __declspec(dllexport)
+    #define STRUCT_API __declspec(dllexport)
   #elif STRUCT_IMPL
-    #define STRUCT_EXPORT __attribute__((__visibility__("default")))
+    #define STRUCT_API __attribute__((__visibility__("default")))
   #elif defined _MSC_VER
-    #define STRUCT_EXPORT __declspec(dllimport)
+    #define STRUCT_API __declspec(dllimport)
   #else
-    #define STRUCT_EXPORT
+    #define STRUCT_API
   #endif
 #else
-  #define STRUCT_EXPORT
+  #define STRUCT_API
 #endif
 
 #endif
