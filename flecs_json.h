@@ -78,6 +78,7 @@ char* ecs_type_to_json(
 
 
 #ifdef __cplusplus
+#ifndef FLECS_NO_CPP
 
 namespace flecs {
 
@@ -109,7 +110,7 @@ inline std::string to_json<flecs::entity>(flecs::world& world, flecs::entity& en
 }
 
 }
-
+#endif
 #endif
 
 #endif
