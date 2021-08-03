@@ -438,7 +438,7 @@ char* ecs_iter_to_json(
 
     while (iter_next(it)) {
         ecs_type_t table_type = ecs_iter_type(it);
-        ecs_entity_t *comps = ecs_vector_first(table_type, ecs_entity_t);
+        ecs_id_t *comps = ecs_vector_first(table_type, ecs_id_t);
         int32_t i, count = ecs_vector_count(table_type);
 
         if (!it->count) {
@@ -465,22 +465,29 @@ char* ecs_iter_to_json(
         ecs_strbuf_list_push(&str, "{", ",");
 
         for (i = 0; i < count; i ++) {
+            ecs_id_t id = comps[i];
+            ecs_entity_t type_id = ecs_get_typeid(world, id);
+
+            if (!type_id) {
+                continue;
+            }
+
             if (select) {
                 if (!ecs_type_has_entity(world, select, comps[i])) {
                     continue;
                 }
             }
             const EcsMetaTypeSerializer *ser = ecs_get(
-                    world, comps[i], EcsMetaTypeSerializer);
+                    world, type_id, EcsMetaTypeSerializer);
                 
             /* Don't serialize if there's no metadata for component */
             if (!ser) {
                 continue;
             }
 
-            char *comp_path = ecs_get_fullpath(world, comps[i]);
+            char comp_path[1024];
+            ecs_id_str(world, id, comp_path, 1024);
             ecs_strbuf_list_append(&str, "\"%s\":", comp_path);
-            ecs_os_free(comp_path);
 
             json_ser_column(
                 world, ser, ecs_table_column(it, i), it->count, &str);
