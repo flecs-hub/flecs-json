@@ -529,14 +529,17 @@ char* ecs_entity_to_json(
         ecs_id_t *comps = ecs_vector_first(type, ecs_id_t);
         for (i = 0; i < count; i ++) {
             ecs_id_t id = comps[i];
+            ecs_entity_t type_id = ecs_get_typeid(world, id);
+
+            if (!type_id) {
+                continue;
+            }
 
             if (select) {
                 if (!ecs_type_has_entity(world, select, id)) {
                     continue;
                 }
             }
-
-            ecs_entity_t type_id = ecs_get_typeid(world, id);
 
             const EcsMetaTypeSerializer *ser = ecs_get(
                     world, type_id, EcsMetaTypeSerializer);
