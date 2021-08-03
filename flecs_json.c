@@ -526,27 +526,31 @@ char* ecs_entity_to_json(
         ecs_strbuf_list_push(&str, "{", ",");
 
         int i, count = ecs_vector_count(type);
-        ecs_entity_t *comps = ecs_vector_first(type, ecs_entity_t);
+        ecs_id_t *comps = ecs_vector_first(type, ecs_id_t);
         for (i = 0; i < count; i ++) {
+            ecs_id_t id = comps[i];
+
             if (select) {
-                if (!ecs_type_has_entity(world, select, comps[i])) {
+                if (!ecs_type_has_entity(world, select, id)) {
                     continue;
                 }
             }
 
+            ecs_entity_t type_id = ecs_get_typeid(world, id);
+
             const EcsMetaTypeSerializer *ser = ecs_get(
-                    world, comps[i], EcsMetaTypeSerializer);
+                    world, type_id, EcsMetaTypeSerializer);
                 
             /* Don't serialize if there's no metadata for component */
             if (!ser) {
                 continue;
             }
             
-            char *comp_path = ecs_get_fullpath(world, comps[i]);
+            char comp_path[1024];
+            ecs_id_str(world, id, comp_path, 1024);
             ecs_strbuf_list_append(&str, "\"%s\":", comp_path);
-            ecs_os_free(comp_path);
 
-            const void *comp_ptr = ecs_get_w_entity(world, entity, comps[i]);
+            const void *comp_ptr = ecs_get_w_entity(world, entity, id);
             ecs_assert(comp_ptr != NULL, ECS_INTERNAL_ERROR, NULL);
 
             json_ser_type(world, ser->ops, comp_ptr, &str);
