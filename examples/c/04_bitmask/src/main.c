@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
     Sandwich s = { "BLT", Bacon | Lettuce | Tomato };
 
     /* Pretty print the value */
-    char *str = ecs_ptr_to_json(world, ecs_typeid(Sandwich), &s);
+    char *str = ecs_ptr_to_json(world, ecs_id(Sandwich), &s);
     printf("%s\n", str);
     free(str);
 

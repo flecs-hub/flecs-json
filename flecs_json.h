@@ -1,3 +1,4 @@
+// Comment out this line when using as DLL
 #define flecs_json_STATIC
 #ifndef FLECS_JSON_H
 #define FLECS_JSON_H
@@ -83,30 +84,26 @@ char* ecs_type_to_json(
 namespace flecs {
 
 template <typename T>
-std::string to_json(flecs::world& world, flecs::entity_t type, T& data) {
-    char *str = ecs_ptr_to_json(world.c_ptr(), type, &data);
-    std::string result = std::string(str);
-    free(str);
-    return result;
+flecs::string to_json(flecs::world& world, flecs::entity_t type, T& data) {
+    char *str = ecs_ptr_to_json(world, type, &data);
+    return flecs::string(str);
 }
 
 template <typename T>
-std::string to_json(flecs::world& world, flecs::entity type, T& data) {
+flecs::string to_json(flecs::world& world, flecs::entity type, T& data) {
     return to_json(world, type.id(), data);
 }
 
 template <typename T>
-std::string to_json(flecs::world& world, T& data) {
-    entity_t type = _::component_info<T>::s_entity;
+flecs::string to_json(flecs::world& world, T& data) {
+    entity_t type = _::cpp_type<T>::id(world);
     return flecs::to_json(world, type, data);
 }
 
 template <>
-inline std::string to_json<flecs::entity>(flecs::world& world, flecs::entity& entity) {
-    char *str = ecs_entity_to_json(world.c_ptr(), entity.id(), nullptr);
-    std::string result = std::string(str);
-    free(str);
-    return result;
+inline flecs::string to_json<flecs::entity>(flecs::world& world, flecs::entity& entity) {
+    char *str = ecs_entity_to_json(world, entity, nullptr);
+    return flecs::string(str);
 }
 
 }

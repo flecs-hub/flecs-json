@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
     v->y = 60;        
 
     /* Pretty print the value */
-    char *str = ecs_ptr_to_json(world, ecs_typeid(Mesh), &m);
+    char *str = ecs_ptr_to_json(world, ecs_id(Mesh), &m);
     printf("%s\n", str);
     free(str);
 
